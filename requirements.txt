@@ -1,0 +1,9 @@
+streamlit
+snowflake-connector-python
+pandas
+voyageai
+langchain
+langchain-community
+python-dotenv
+pillow
+snowflake-snowpark-python
