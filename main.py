@@ -7,6 +7,7 @@ import io
 import os
 import tempfile
 import base64
+import re
 from PIL import Image
 
 # LANGCHAIN IMPORTS
@@ -14,10 +15,8 @@ from modules.database import search_products_by_vector
 from modules.embedder import get_text_embedding, get_image_embedding_from_bytes
 from modules.llm import get_llm_cortex
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.output_parsers import JsonOutputParser
-from langchain_community.chat_message_histories import ChatMessageHistory
-from langchain_core.chat_history import BaseChatMessageHistory
-from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.messages import HumanMessage, AIMessage # Tambahan untuk manual history
 
 # ==========================================
 # 0. CONFIG & SAFETY CHECK
@@ -26,7 +25,7 @@ STAGE_PATH = "@RETAIL_GENAI_DB.PUBLIC.PRODUCT_IMAGES_STAGE"
 
 st.set_page_config(
     page_title="SoleMate AI",
-    page_icon="logo.png",
+    page_icon="👟",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -62,15 +61,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.logo("logo.png", size="large", link=None)
+st.logo("logo.png", link=None)
 
 # ==========================================
 # 1. STATE MANAGEMENT
 # ==========================================
 if "page" not in st.session_state:
     st.session_state.page = "home"
-if "langchain_store" not in st.session_state:
-    st.session_state.langchain_store = {}
+# Kita tidak lagi butuh langchain_store yang kompleks karena manual injection
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "assistant", "content": "Hi! I'm SoleMate. Upload a photo or describe what you're looking for!", "type": "text"}
@@ -81,11 +79,6 @@ if "image_cache" not in st.session_state:
 def switch_page(page_name):
     st.session_state.page = page_name
     st.rerun()
-
-def get_session_history(session_id: str) -> BaseChatMessageHistory:
-    if session_id not in st.session_state.langchain_store:
-        st.session_state.langchain_store[session_id] = ChatMessageHistory()
-    return st.session_state.langchain_store[session_id]
 
 # ==========================================
 # 2. HELPER FUNCTIONS
@@ -131,6 +124,34 @@ def format_context_json(df):
         })
     return json.dumps(products)
 
+# --- ROBUST JSON PARSER (IMPROVED) ---
+def extract_json_from_text(text):
+    """
+    Satpam yang lebih galak mencari JSON valid.
+    """
+    try:
+        # 1. Coba parse langsung (Ideal)
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    try:
+        # 2. Coba cari blok code ```json ... ```
+        match = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
+        if match:
+            return json.loads(match.group(1))
+        
+        # 3. Coba cari kurung kurawal terluar (Greedy)
+        # Menangkap dari { pertama sampai } terakhir
+        match_bracket = re.search(r"(\{.*\})", text, re.DOTALL)
+        if match_bracket:
+            return json.loads(match_bracket.group(1))
+            
+    except Exception:
+        pass
+        
+    return None 
+
 # ==========================================
 # 3. CORE AI MODULES
 # ==========================================
@@ -165,35 +186,44 @@ def analyze_image_with_cortex(image_file):
         if conn: conn.close()
 
 def smart_router(user_text, image_desc):
-    """
-    Optimized Intent Classification
-    """
-    # Quick Keyword Check (Bypass LLM for speed)
+    # 1. Fallback Cepat
     greetings = ['hi', 'hello', 'hey', 'p', 'halo', 'test', 'pagi', 'siang', 'malam']
-    if len(user_text.split()) < 3 and user_text.lower().strip() in greetings:
+    text_lower = user_text.lower().strip()
+    
+    if len(user_text.split()) < 3 and text_lower in greetings:
+        return {"is_footwear": True, "intent": "CHAT"}
+        
+    # Keywords teknis -> Chat
+    keywords_chat = ["model", "who are you", "what are you", "siapa kamu", "ai", "gemini", "gpt", "architecture", "llm"]
+    if any(k in text_lower for k in keywords_chat):
         return {"is_footwear": True, "intent": "CHAT"}
 
+    # 2. LLM Based Router
     system_prompt = """
     You are a Smart Router.
     INPUTS: User Text: "{user_text}", Image Desc: "{image_desc}"
+    
     RULES:
     1. IS_FOOTWEAR: False if image describes car/animal/food. True if shoes or No image.
     2. INTENT: 
-       - SEARCH: User explicitly asks to FIND, BUY, SHOW, RECOMMEND products (e.g. "red shoes", "price?", "boots").
-       - CHAT: Greetings ("Hi"), General talk ("How are you"), Questions NOT about buying ("Who made you?").
+       - SEARCH: User explicitly asks to FIND, BUY, SHOW, RECOMMEND products.
+       - CHAT: Greetings, General talk, Questions about the AI ("what model", "who made you"), Questions NOT about buying.
        - If is_footwear=False -> CHAT.
-    OUTPUT JSON: {{"is_footwear": true/false, "intent": "SEARCH" or "CHAT"}}
+       
+    OUTPUT JSON ONLY: {{"is_footwear": true/false, "intent": "SEARCH" or "CHAT"}}
     """
     try:
         prompt = ChatPromptTemplate.from_template(system_prompt)
         llm = get_llm_cortex() 
-        chain = prompt | llm | JsonOutputParser()
-        return chain.invoke({"user_text": user_text, "image_desc": image_desc})
+        chain = prompt | llm | StrOutputParser() 
+        raw_response = chain.invoke({"user_text": user_text, "image_desc": image_desc})
+        parsed = extract_json_from_text(raw_response)
+        
+        if parsed: return parsed
+        else: return {"is_footwear": True, "intent": "CHAT"} 
+            
     except:
-        # Fallback Logic: If text is short, assume CHAT. If long, assume SEARCH.
-        if len(user_text) < 15:
-            return {"is_footwear": True, "intent": "CHAT"}
-        return {"is_footwear": True, "intent": "SEARCH"}
+        return {"is_footwear": True, "intent": "CHAT"}
 
 @st.dialog("✨ Product Details")
 def show_product_popup(product):
@@ -276,7 +306,6 @@ if st.session_state.page == "home":
 elif st.session_state.page == "chatbot":
     st.title("💬 Chat with SoleMate")
     
-    # 1. Load History Images
     all_history_images = []
     for msg in st.session_state.messages:
         if msg.get("role") == "assistant" and msg.get("data") is not None and not msg["data"].empty:
@@ -284,7 +313,7 @@ elif st.session_state.page == "chatbot":
             all_history_images.extend(files)
     if all_history_images: fetch_images_batch(list(set(all_history_images)))
 
-    # 2. Render Chat History
+    # Render Chat
     for i, msg in enumerate(st.session_state.messages):
         with st.chat_message(msg["role"]):
             if msg.get("thought"):
@@ -305,7 +334,7 @@ elif st.session_state.page == "chatbot":
                             if st.button("View", key=f"chat_btn_{i}_{idx}", use_container_width=True):
                                 show_product_popup(row)
 
-    # 3. Input Logic
+    # Input Logic
     uploaded_file = st.session_state.get("sidebar_uploader")
     input_text = st.chat_input("Ask SoleMate")
 
@@ -328,7 +357,7 @@ elif st.session_state.page == "chatbot":
                     image_desc = analyze_image_with_cortex(uploaded_file)
                     st.write("✅ Image Analyzed.")
                 
-                # Routing (OPTIMIZED)
+                # Routing
                 st.write("🚦 Routing Intent...")
                 router_res = smart_router(last_msg, image_desc)
                 intent = router_res.get("intent", "CHAT")
@@ -340,7 +369,6 @@ elif st.session_state.page == "chatbot":
                 context_str = "[]"
                 
                 if not is_footwear or intent == "CHAT":
-                    # SKIP SEARCHING DB IF CHAT
                     st.write("💬 Conversational Mode (Skipping Search)")
                 
                 elif intent == "SEARCH":
@@ -361,6 +389,16 @@ elif st.session_state.page == "chatbot":
 
                 # Generation
                 st.write("✍️ Drafting Response...")
+                
+                # --- MANUAL HISTORY INJECTION ---
+                # Mengubah st.session_state.messages menjadi format LangChain (HumanMessage/AIMessage)
+                history_langchain = []
+                for msg in st.session_state.messages[:-1]: # Skip pesan user terakhir (karena sudah masuk 'input')
+                    if msg["role"] == "user":
+                        history_langchain.append(HumanMessage(content=msg["content"]))
+                    elif msg["role"] == "assistant":
+                        history_langchain.append(AIMessage(content=msg["content"]))
+
                 prompt = ChatPromptTemplate.from_messages([
                     ("system", """
                     You are SoleMate, an expert footwear consultant.
@@ -371,46 +409,65 @@ elif st.session_state.page == "chatbot":
                     IS_FOOTWEAR: {is_footwear}
                     
                     INSTRUCTIONS:
-                    1. If IS_FOOTWEAR=False, politely explain you only deal with shoes.
-                    2. If INTENT=CHAT, reply naturally. Do not hallucinate products.
-                    3. If INTENT=SEARCH:
+                    1. ALWAYS OUTPUT VALID JSON.
+                    2. If IS_FOOTWEAR=False, politely explain you only deal with shoes.
+                    3. If INTENT=CHAT, reply naturally and friendly. If asked about your model/identity, answer briefly as an AI assistant.
+                    4. If INTENT=SEARCH:
                        - Select Top 3 products from CONTEXT.
-                       - For EACH product, write:
-                         * **Why it fits:** Specific reason based on request.
-                         * **Key Features:** Material/Tech.
-                         * **Best For:** Ideal occasion.
+                       - For EACH product, write detailed recommendation.
                     
-                    OUTPUT JSON: {{ "classification": "recommendation"|"chat", "thought": "Step-by-step reasoning...", "response_text": "Markdown string...", "recommended_products": [] }}
+                    OUTPUT JSON FORMAT: 
+                    {{ "classification": "recommendation"|"chat", "thought": "Reasoning...", "response_text": "Markdown string...", "recommended_products": [] }}
                     """),
-                    MessagesPlaceholder(variable_name="chat_history"),
+                    MessagesPlaceholder(variable_name="chat_history"), # Placeholder untuk history manual
                     ("human", "{input}")
                 ])
                 
                 llm = get_llm_cortex()
-                chain = prompt | llm | JsonOutputParser()
-                chain_with_history = RunnableWithMessageHistory(
-                    chain, get_session_history, input_messages_key="input", history_messages_key="chat_history", output_messages_key="response_text"
-                )
+                chain = prompt | llm | StrOutputParser()
+                
+                final_res = {}
                 
                 try:
-                    res = chain_with_history.invoke(
-                        {"input": last_msg, "context": context_str, "img_desc": image_desc, "is_footwear": is_footwear, "intent": intent},
-                        config={"configurable": {"session_id": "user_session_1"}}
+                    # Invoke dengan Manual History
+                    raw_response = chain.invoke(
+                        {
+                            "input": last_msg, 
+                            "chat_history": history_langchain, # Inject history disini
+                            "context": context_str, 
+                            "img_desc": image_desc, 
+                            "is_footwear": is_footwear, 
+                            "intent": intent
+                        }
                     )
+                    
+                    parsed_json = extract_json_from_text(raw_response)
+                    
+                    if parsed_json:
+                        final_res = parsed_json
+                    else:
+                        # Fallback jika gagal parse JSON
+                        final_res = {
+                            "classification": "chat",
+                            "thought": "Direct response (non-JSON).",
+                            "response_text": raw_response 
+                        }
+                    
                     status.update(label="✅ Done!", state="complete", expanded=False)
+                
                 except Exception as e:
                     st.error(f"Error: {e}")
                     st.stop()
             
-            # FINAL RENDER (Outside Status)
-            if res.get('thought'):
+            # FINAL RENDER
+            if final_res.get('thought') and final_res.get('thought') != "Direct response (non-JSON).":
                 with st.expander("🧠 AI Reasoning (Thinking Process)", expanded=False):
-                    st.markdown(f"**Thought Process:**\n{res.get('thought')}")
+                    st.markdown(f"**Thought Process:**\n{final_res.get('thought')}")
             
-            st.markdown(res.get("response_text"))
+            st.markdown(final_res.get("response_text"))
             
             show_grid = False
-            if res.get('classification') == 'recommendation' and not products_df.empty:
+            if final_res.get('classification') == 'recommendation' and not products_df.empty:
                 show_grid = True
                 
             if show_grid:
@@ -428,7 +485,7 @@ elif st.session_state.page == "chatbot":
 
             st.session_state.messages.append({
                 "role": "assistant", 
-                "content": res.get("response_text"),
-                "thought": res.get("thought"),
+                "content": final_res.get("response_text"),
+                "thought": final_res.get("thought"),
                 "data": products_df if show_grid else None
             })
