@@ -93,8 +93,7 @@ SoleMate-AI/
 
 1. **Clone the repository**
 ```bash
-git clone [https://github.com/bwahyuh/RAG-Snowflake-and-Streamlit.git](https://github.com/bwahyuh/RAG-Snowflake-and-Streamlit.git)
-cd SoleMate-AI
+git clone https://github.com/bwahyuh/RAG-Snowflake-and-Streamlit.git
 
 ```
 
@@ -160,5 +159,3 @@ Distributed under the MIT License. See `LICENSE` for more information.
 [**Bagas Wahyu Herdiansyah**](https://www.linkedin.com/in/bagas-wahyu-herdiansyah/)
 
 * **Copyright**: © 2026
-
-```
