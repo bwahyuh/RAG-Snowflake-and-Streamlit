@@ -1,6 +1,8 @@
-# 👟 SoleMate AI
+It looks like the Mermaid diagram block in the previous `README.md` might have had a formatting issue where the closing backticks were too close to the next section header, or there was a missing newline, causing the renderer to merge the text.
 
-<div align="center">
+Here is the **corrected** `README.md` content. I have added extra spacing around the diagram code to ensure it renders correctly on GitHub.
+
+# 👟 SoleMate AI
 
 ![Status](https://img.shields.io/badge/Status-Active-success?style=for-the-badge)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white)
@@ -10,6 +12,9 @@
 ![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
 
 **Next-Gen Footwear Concierge powered by Multimodal RAG**
+
+[View Demo](https://solemateai.streamlit.app/)
+
 
 ---
 
@@ -47,23 +52,20 @@ graph TD
     
     LLM -->|Final Response| UI
 
+```
 
-🛠️ Tech Stack
-Frontend Framework: Streamlit
+## 🛠️ Tech Stack
 
-LLM & Vision: Snowflake Cortex (Claude 3.5 Sonnet)
+* **Frontend Framework**: [Streamlit](https://streamlit.io/)
+* **LLM & Vision**: [Snowflake Cortex](https://www.google.com/search?q=https://docs.snowflake.com/en/user-guide/snowflake-cortex-llm-functions) (Claude 3.5 Sonnet)
+* **Embeddings**: [Voyage AI](https://docs.voyageai.com/) (Multimodal-3)
+* **Vector Database**: Snowflake (Vector Data Type)
+* **Orchestration**: [LangChain](https://www.langchain.com/)
+* **Data Connector**: `snowflake-connector-python`
 
-Embeddings: Voyage AI (Multimodal-3)
+## 📂 Project Structure
 
-Vector Database: Snowflake (Vector Data Type)
-
-Orchestration: LangChain
-
-Data Connector: snowflake-connector-python
-
-📂 Project Structure
-Plaintext
-
+```text
 SoleMate-AI/
 ├── modules/
 │   ├── database.py       # Snowflake connection & Vector Search logic
@@ -75,38 +77,46 @@ SoleMate-AI/
 ├── logo.png              # App branding asset
 ├── main.py               # Main application entry point
 └── requirements.txt      # Python dependencies
-🚀 Getting Started
-Prerequisites
-Python 3.10+
 
-A Snowflake account with Cortex enabled.
+```
 
-A Voyage AI API Key.
+## 🚀 Getting Started
 
-A Snowflake Stage created for image storage (@RETAIL_GENAI_DB.PUBLIC.PRODUCT_IMAGES_STAGE).
+### Prerequisites
 
-Installation
-Clone the repository
+* Python 3.10+
+* A **Snowflake** account with Cortex enabled.
+* A **Voyage AI** API Key.
+* A Snowflake Stage created for image storage (`@RETAIL_GENAI_DB.PUBLIC.PRODUCT_IMAGES_STAGE`).
 
-Bash
+### Installation
 
-git clone [https://github.com/yourusername/SoleMate-AI.git](https://github.com/yourusername/SoleMate-AI.git)
+1. **Clone the repository**
+```bash
+git clone [https://github.com/bwahyuh/RAG-Snowflake-and-Streamlit.git](https://github.com/bwahyuh/RAG-Snowflake-and-Streamlit.git)
 cd SoleMate-AI
-Create a virtual environment
 
-Bash
+```
 
+
+2. **Create a virtual environment**
+```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
-Install dependencies
 
-Bash
+```
 
+
+3. **Install dependencies**
+```bash
 pip install -r requirements.txt
-Configure Secrets Create a .streamlit/secrets.toml file in the root directory:
 
-Ini, TOML
+```
 
+
+4. **Configure Secrets**
+Create a `.streamlit/secrets.toml` file in the root directory:
+```toml
 [snowflake]
 user = "YOUR_USER"
 password = "YOUR_PASSWORD"
@@ -118,30 +128,37 @@ role = "YOUR_ROLE"
 
 [voyage]
 api_key = "YOUR_VOYAGE_API_KEY"
-Run the application
 
-Bash
+```
 
+
+5. **Run the application**
+```bash
 streamlit run main.py
-☁️ Deployment
-To deploy on Streamlit Community Cloud:
 
-Push your code to GitHub.
+```
 
-Login to share.streamlit.io.
 
-Click New App and select your repository.
 
-Go to Advanced Settings within the deployment dashboard.
+## ☁️ Deployment
 
-Copy the contents of your local secrets.toml and paste them into the Secrets field.
+To deploy on **Streamlit Community Cloud**:
 
-Click Deploy! 🚀
+1. Push your code to GitHub.
+2. Login to [share.streamlit.io](https://share.streamlit.io/).
+3. Click **New App** and select your repository.
+4. Go to **Advanced Settings** within the deployment dashboard.
+5. Copy the contents of your local `secrets.toml` and paste them into the **Secrets** field.
+6. Click **Deploy**! 🚀
 
-📜 License
-Distributed under the MIT License. See LICENSE for more information.
+## 📜 License
 
-👤 Author
-Bagas Wahyu Herdiansyah
+Distributed under the MIT License. See `LICENSE` for more information.
 
-Copyright: © 2026
+## 👤 Author
+
+[**Bagas Wahyu Herdiansyah**](https://www.linkedin.com/in/bagas-wahyu-herdiansyah/)
+
+* **Copyright**: © 2026
+
+```
