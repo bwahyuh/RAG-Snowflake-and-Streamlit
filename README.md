@@ -1,7 +1,3 @@
-It looks like the Mermaid diagram block in the previous `README.md` might have had a formatting issue where the closing backticks were too close to the next section header, or there was a missing newline, causing the renderer to merge the text.
-
-Here is the **corrected** `README.md` content. I have added extra spacing around the diagram code to ensure it renders correctly on GitHub.
-
 # 👟 SoleMate AI
 
 ![Status](https://img.shields.io/badge/Status-Active-success?style=for-the-badge)
